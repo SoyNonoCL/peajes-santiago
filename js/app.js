@@ -26,17 +26,32 @@ function esc(s) { return String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp
 function localISO(d) { const z = new Date(d.getTime() - d.getTimezoneOffset() * 60000); return z.toISOString().slice(0, 16); }
 
 // ------------------------------------------------------------------ datos
+const SITIO = "https://soynonocl.github.io/peajes-santiago/";
+const NATIVO = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
+
+function masNueva(a, b) { // compara "2026.11.1" con "2026.11.10" numéricamente
+  const x = String(a).split(".").map(Number), y = String(b).split(".").map(Number);
+  for (let i = 0; i < Math.max(x.length, y.length); i++) { if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) > (y[i] || 0); }
+  return false;
+}
+async function bajar(url) {
+  const r = await fetch(url, { cache: "no-cache" });
+  if (!r.ok) throw new Error(r.status);
+  return r.json();
+}
+/** Usa la versión de tarifas más nueva entre la publicada, la incluida en la app y la guardada. */
 async function cargarDatos() {
-  try {
-    const r = await fetch("data/tarifas.json", { cache: "no-cache" });
-    if (!r.ok) throw new Error(r.status);
-    DATA = await r.json();
-    store.set(KEY.datos, DATA);
-  } catch {
-    DATA = store.get(KEY.datos, null);
-    if (!DATA) { $("#estadoDatos").textContent = "Sin tarifas: requiere conexión"; return; }
-    toast("Sin conexión: usando las tarifas guardadas");
+  const guardada = store.get(KEY.datos, null);
+  const fuentes = NATIVO ? [SITIO + "data/tarifas.json", "data/tarifas.json"] : ["data/tarifas.json"];
+  let mejor = null;
+  for (const u of fuentes) {
+    try { const d = await bajar(u); if (!mejor || masNueva(d.version, mejor.version)) mejor = d; } catch { /* sin red o sin archivo */ }
   }
+  if (guardada && (!mejor || masNueva(guardada.version, mejor.version))) mejor = guardada;
+  DATA = mejor;
+  if (!DATA) { $("#estadoDatos").textContent = "Sin tarifas: requiere conexión"; return; }
+  store.set(KEY.datos, DATA);
+  if (!navigator.onLine) toast("Sin conexión: usando las tarifas guardadas");
   FERIADOS = new Set(DATA.feriados);
   $("#estadoDatos").textContent = `Tarifas ${DATA.vigencia} · v${DATA.version}`;
   const sel = $("#cat");
@@ -356,4 +371,5 @@ document.querySelector(".pestanas").addEventListener("click", (e) => { const b =
 $("#salida").value = localISO(new Date());
 renderPuntos();
 cargarDatos();
-if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});
+if (!NATIVO && "serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});
+if (NATIVO) document.querySelectorAll(".solo-web").forEach((e) => e.remove());

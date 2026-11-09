@@ -1,0 +1,7 @@
+{
+  "appId": "cl.omunozcifuentes.peajes",
+  "appName": "Peajes Santiago",
+  "webDir": "www",
+  "android": { "allowMixedContent": false },
+  "server": { "androidScheme": "https" }
+}

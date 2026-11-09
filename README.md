@@ -22,3 +22,15 @@ Sin publicidad ni rastreo. Recorridos e historial quedan en el teléfono. Para t
 Mapa © colaboradores de OpenStreetMap. Mapa interactivo: Leaflet. Tarifas: MOP.
 
 Hecho por Orlando Muñoz Cifuentes · [Invítame un café](https://ko-fi.com/omunozcifuentes)
+
+## App para Android (APK)
+Descarga directa: https://soynonocl.github.io/peajes-santiago/apk/peajes-santiago.apk
+
+Se genera con Capacitor (`android/`). Para compilar una versión nueva:
+```bash
+npm install
+npm run android                       # copia la web a www/ y sincroniza android/
+cd android && PEAJES_KEYSTORE_PROPS=/ruta/keystore.properties ./gradlew assembleRelease
+cp app/build/outputs/apk/release/app-release.apk ../apk/peajes-santiago.apk
+```
+Sube `versionCode` en `android/app/build.gradle` en cada versión. La llave de firma no se publica: está en el repositorio privado `peajes-santiago-codigo`. Las tarifas no requieren una versión nueva del APK: la app descarga `data/tarifas.json` desde la página publicada.
