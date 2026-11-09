@@ -175,7 +175,7 @@ export function calcular(data, ruta, salida, opts) {
   const urb = [];
   for (const u of data.urbanas) for (const [sid, s] of Object.entries(u.sentidos)) for (const p of s.porticos) {
     if (!p.geo) continue;
-    for (const x of pasosGeo(ruta, p.geo, 18)) urb.push({ tipo: "urb", u, sid, s, p, ...x });
+    for (const x of pasosGeo(ruta, p.geo, 8)) urb.push({ tipo: "urb", u, sid, s, p, ...x });
   }
   // Un solo cobro cuando calzan dos pórticos en el mismo punto: el de la calzada opuesta (mismo código)
   // o pórticos alternativos del mismo tramo (p. ej. P8.0–P8.3 de Kennedy). Se queda el más cercano a la ruta.
@@ -190,13 +190,13 @@ export function calcular(data, ruta, salida, opts) {
   const avoPasos = [];
   for (const p of data.avo.porticos) {
     if (!p.geo) continue;
-    for (const x of pasosGeo(ruta, p.geo, 18)) avoPasos.push({ p, ...x });
+    for (const x of pasosGeo(ruta, p.geo, 8)) avoPasos.push({ p, ...x });
   }
   avoPasos.sort((a, b) => a.s - b.s);
   // 3. plazas
   for (const p of data.plazas) {
     if (!p.geo) continue;
-    for (const x of pasosGeo(ruta, p.geo, 45)) pasados.push({ tipo: "plaza", p, ...x });
+    for (const x of pasosGeo(ruta, p.geo, 30)) pasados.push({ tipo: "plaza", p, ...x });
   }
 
   const items = [];
