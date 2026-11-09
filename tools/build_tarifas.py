@@ -72,6 +72,7 @@ def main():
 
     avo = {k: O.AVO[k] for k in ("id", "nombre", "operador", "fuente", "tipo", "sin_tag")}
     avo["h"] = horarios(O.AVO["horarios"])
+    avo["tarifaKm"] = {"c14": [232, 464], "c2": [464, 928], "c3": [696, 1392]}  # área 1, TBFP / TBP
     avo["porticos"] = [{"codigo": c, "nombre": n, "geo": None} for c, n in O.AVO_PORTICOS.items()]
     avo["pares"] = [{"area": ar, "entrada": e, "salida": s, "km": km,
                      "t": {"c14": list(a), "c2": list(b), "c3": list(c)}} for (ar, e, s, km, a, b, c) in O.AVO_PARES]

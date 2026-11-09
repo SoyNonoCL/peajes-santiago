@@ -1,5 +1,5 @@
 // Service worker: guarda la app para abrirla sin conexión; tarifas con red primero.
-const VERSION = "peajes-v1";
+const VERSION = "peajes-v2";
 const APP = [
   "./", "index.html", "css/app.css", "js/app.js", "js/calc.js", "manifest.webmanifest",
   "vendor/leaflet.js", "vendor/leaflet.css", "vendor/images/marker-icon.png", "vendor/images/marker-shadow.png",

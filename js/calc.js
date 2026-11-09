@@ -124,6 +124,20 @@ export function prepararRuta(coords, duraciones, factorTiempo = 1) {
   return { coords, s, t, bbox: [minLat - 0.003, minLon - 0.004, maxLat + 0.003, maxLon + 0.004] };
 }
 
+/** Pasos de la ruta por un pórtico que puede tener uno o varios puntos en el mapa. */
+export function pasosGeo(ruta, geo, tolDef) {
+  const lista = Array.isArray(geo) ? geo : [geo];
+  const todos = [];
+  for (const g of lista) todos.push(...pasos(ruta, g, g.tol || tolDef, g.rumbo));
+  todos.sort((a, b) => a.s - b.s);
+  const out = [];
+  for (const x of todos) {
+    const u = out[out.length - 1];
+    if (u && x.s - u.s < 400) { if (x.d < u.d) out[out.length - 1] = x; } else out.push(x);
+  }
+  return out;
+}
+
 /** Todos los pasos de la ruta cerca de un punto (puede pasar más de una vez). */
 export function pasos(ruta, geo, tol, rumboEsperado = null, maxDif = 55) {
   const p = [geo.lat, geo.lon];
@@ -158,21 +172,31 @@ export function calcular(data, ruta, salida, opts) {
   const pasados = [];
 
   // 1. pórticos urbanos
+  const urb = [];
   for (const u of data.urbanas) for (const [sid, s] of Object.entries(u.sentidos)) for (const p of s.porticos) {
     if (!p.geo) continue;
-    for (const x of pasos(ruta, p.geo, p.geo.tol || 25, p.geo.rumbo)) pasados.push({ tipo: "urb", u, sid, s, p, ...x });
+    for (const x of pasosGeo(ruta, p.geo, 18)) urb.push({ tipo: "urb", u, sid, s, p, ...x });
+  }
+  // Un solo cobro cuando calzan dos pórticos en el mismo punto: el de la calzada opuesta (mismo código)
+  // o pórticos alternativos del mismo tramo (p. ej. P8.0–P8.3 de Kennedy). Se queda el más cercano a la ruta.
+  urb.sort((a, b) => a.s - b.s);
+  for (const x of urb) {
+    const rival = pasados.find((y) => y.u.id === x.u.id && Math.abs(y.s - x.s) < 600 &&
+      (y.p.codigo === x.p.codigo || (y.sid === x.sid && y.p.tramo === x.p.tramo)));
+    if (!rival) pasados.push(x);
+    else if (x.d < rival.d) pasados[pasados.indexOf(rival)] = x;
   }
   // 2. pórticos AVO (entradas y salidas)
   const avoPasos = [];
   for (const p of data.avo.porticos) {
     if (!p.geo) continue;
-    for (const x of pasos(ruta, p.geo, p.geo.tol || 25, p.geo.rumbo)) avoPasos.push({ p, ...x });
+    for (const x of pasosGeo(ruta, p.geo, 18)) avoPasos.push({ p, ...x });
   }
   avoPasos.sort((a, b) => a.s - b.s);
   // 3. plazas
   for (const p of data.plazas) {
     if (!p.geo) continue;
-    for (const x of pasos(ruta, p.geo, p.geo.tol || 60, p.geo.rumbo)) pasados.push({ tipo: "plaza", p, ...x });
+    for (const x of pasosGeo(ruta, p.geo, 45)) pasados.push({ tipo: "plaza", p, ...x });
   }
 
   const items = [];
@@ -226,7 +250,31 @@ export function calcular(data, ruta, salida, opts) {
       par = pares.find((q) => q.entrada === e.p.codigo && q.salida === avoPasos[j].p.codigo);
       if (par) break;
     }
-    if (!par) { k++; continue; }
+    if (!par) {
+      // Pórtico de entrada o salida sin pareja conocida en el mapa: se estima por km dentro de AVO.
+      const nodos = data.avo.porticos.flatMap((p) => (p.geo ? (Array.isArray(p.geo) ? p.geo : [p.geo]) : []));
+      let i = e.i, recorrido = 0;
+      while (i < ruta.coords.length - 1 && recorrido < 9500) {
+        const cerca = nodos.some((g) => distancia(ruta.coords[i], [g.lat, g.lon]) < 900);
+        if (!cerca) break;
+        recorrido = ruta.s[i + 1] - e.s; i++;
+      }
+      const km = Math.max(1, recorrido / 1000);
+      const cuando = momento(e.t), dia = tipoDia(cuando, feriados), m = minutosDelDia(cuando);
+      const b = banda(data.avo.h, dia, m);
+      const tk = data.avo.tarifaKm[ck];
+      items.push({
+        s: e.s, t: e.t, cuando, autopista: data.avo.nombre, autopistaId: "AVO", sentido: "",
+        codigo: e.p.codigo, nombre: `${e.p.nombre} (tramo estimado ${km.toFixed(1)} km)`,
+        banda: b, monto: opts.tag ? km * (b === "TBP" ? tk[1] : tk[0]) : data.avo.sin_tag.pasada[ck],
+        cambio: proximoCambio(data.avo.h, dia, m), sinTagPropio: true,
+        nota: "Uno de los pórticos de este tramo no está en el mapa; el monto se estima por kilómetro.",
+      });
+      // saltar los demás pasos AVO dentro del tramo estimado
+      k++;
+      while (k < avoPasos.length && avoPasos[k].s - e.s < recorrido + 50) k++;
+      continue;
+    }
     const fin = par.entrada === "P110" ? e : avoPasos[j];
     const cuando = momento(e.t), dia = tipoDia(cuando, feriados), m = minutosDelDia(cuando);
     const b = banda(data.avo.h, dia, m);
